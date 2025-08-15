@@ -21,11 +21,11 @@ pipeline {
     }
 
     stage('Install Dependencies') {
-      agent {
-        dockerContainer {
-          image 'node:18'
-        }
-      }
+      steps {
+           sh 'docker run --rm -v $PWD:/app -w /app/backend node:18 npm install'
+           sh 'docker run --rm -v $PWD:/app -w /app/frontend node:18 npm install'
+              }
+
       steps {
         dir('backend') {
           sh 'npm install'
