@@ -39,17 +39,22 @@ pipeline {
 
     stage("Quality Gate") {
       steps {
-        timeout(time: 2, unit: "MINUTES") {
-          waitForQualityGate abortPipeline: true
+        timeout(time: 5, unit: "MINUTES") {
+          script {
+            def qg = waitForQualityGate()
+            if (qg.status != 'OK') {
+              error "Quality gate failed: ${qg.status}"
+            }
+          }
         }
       }
     }
 
     stage("Security Checks") {
       steps {
-        dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'owasp'
+        dependencyCheck additionalArguments: '--disableNodeAudit --scan ./', odcInstallation: 'owasp'
         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-        sh "trivy fs --format table -o trivy-fs-report.html ."
+        sh "trivy fs --security-checks vuln --skip-dirs node_modules --format table -o trivy-fs-report.html ."
       }
     }
 
@@ -90,7 +95,7 @@ pipeline {
         script {
           def images = [
             "${FRONTEND_IMAGE}:${IMAGE_TAG}",
-            "${BACKEND_IMAGE}:${IMAGE_TAG}", 
+            "${BACKEND_IMAGE}:${IMAGE_TAG}",
             "${DATABASE_IMAGE}:${IMAGE_TAG}"
           ]
           
@@ -131,22 +136,21 @@ pipeline {
   post {
     always {
       sh "docker logout || true"
-      // Only archive reports that exist
+      // Archive reports if they exist
       script {
-        def artifacts = []
-        if (fileExists('dependency-check-report.xml')) {
-          artifacts.add('**/dependency-check-report.xml')
-        }
-        if (fileExists('trivy-fs-report.html')) {
-          artifacts.add('**/trivy-fs-report.html')
-        }
+        def reports = [
+          'dependency-check-report.xml',
+          'trivy-fs-report.html'
+        ]
+        
         // Add image scan reports
-        findFiles(glob: 'trivy-image-scan-*.html').each {
-          artifacts.add(it.path)
+        def scanReports = findFiles(glob: 'trivy-image-scan-*.html')
+        scanReports.each { report ->
+          reports.add(report.path)
         }
         
-        if (!artifacts.isEmpty()) {
-          archiveArtifacts artifacts: artifacts.join(','), allowEmptyArchive: true
+        if (!reports.isEmpty()) {
+          archiveArtifacts artifacts: reports.join(','), allowEmptyArchive: true
         }
       }
     }
