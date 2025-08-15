@@ -112,11 +112,13 @@ pipeline {
 
     stage('Push Images') {
       steps {
-        parallel(
-          "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
-          "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
-          "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
-        )
+        script {
+          parallel(
+            "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
+            "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
+            "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
+          )
+        }
       }
     }
 
@@ -166,4 +168,3 @@ pipeline {
     }
   }
 }
-
