@@ -22,8 +22,8 @@ pipeline {
 
     stage('Install Dependencies') {
       steps {
-        sh 'docker run --rm -v $PWD:/app -w /app/backend node:18 npm install'
-        sh 'docker run --rm -v $PWD:/app -w /app/frontend node:18 npm install'
+        sh 'docker run --rm -u $(id -u):$(id -g) -v $PWD:/app -w /app/backend node:18 npm install'
+        sh 'docker run --rm -u $(id -u):$(id -g) -v $PWD:/app -w /app/frontend node:18 npm install'
       }
     }
 
@@ -92,6 +92,27 @@ pipeline {
       }
     }
 
+    stage('Trivy Image Scan') {
+      steps {
+        script {
+          def images = [
+            "${FRONTEND_IMAGE}:${IMAGE_TAG}",
+            "${BACKEND_IMAGE}:${IMAGE_TAG}",
+            "${DATABASE_IMAGE}:${IMAGE_TAG}"
+          ]
+          images.each { img ->
+            sh """
+              echo "🔍 Scanning ${img} for HIGH and CRITICAL vulnerabilities..."
+              trivy image --severity HIGH,CRITICAL \
+                --format table \
+                --output trivy-image-scan-${img.replace('/', '-')}.html \
+                ${img}
+            """
+          }
+        }
+      }
+    }
+
     stage('Docker Login') {
       steps {
         sh """
@@ -113,9 +134,12 @@ pipeline {
         }
       }
     }
-  } // 🔹 Closing stages block
+  }
 
   post {
+    always {
+      archiveArtifacts artifacts: '**/dependency-check-report.xml,**/trivy-fs-report.html,**/trivy-image-scan-*.html', allowEmptyArchive: true
+    }
     success {
       emailext(
         to: 'kiranmyself90@gmail.com',
