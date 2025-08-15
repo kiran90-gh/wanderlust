@@ -22,7 +22,7 @@ pipeline {
 
     stage('Install Dependencies') {
       agent {
-        docker {
+        dockerContainer {
           image 'node:18'
           args '-u root:root'
         }
@@ -70,31 +70,33 @@ pipeline {
       }
     }
 
-    stage('Build Frontend') {
-      steps {
-        dir('frontend') {
-          script {
-            docker.build("${FRONTEND_IMAGE}:${IMAGE_TAG}", ".")
+    stage('Build Docker Images') {
+      parallel {
+        stage('Build Frontend') {
+          steps {
+            dir('frontend') {
+              script {
+                docker.build("${FRONTEND_IMAGE}:${IMAGE_TAG}", ".")
+              }
+            }
           }
         }
-      }
-    }
-
-    stage('Build Backend') {
-      steps {
-        dir('backend') {
-          script {
-            docker.build("${BACKEND_IMAGE}:${IMAGE_TAG}", ".")
+        stage('Build Backend') {
+          steps {
+            dir('backend') {
+              script {
+                docker.build("${BACKEND_IMAGE}:${IMAGE_TAG}", ".")
+              }
+            }
           }
         }
-      }
-    }
-
-    stage('Build Database') {
-      steps {
-        dir('database') {
-          script {
-            docker.build("${DATABASE_IMAGE}:${IMAGE_TAG}", ".")
+        stage('Build Database') {
+          steps {
+            dir('database') {
+              script {
+                docker.build("${DATABASE_IMAGE}:${IMAGE_TAG}", ".")
+              }
+            }
           }
         }
       }
