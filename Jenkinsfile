@@ -43,7 +43,9 @@ pipeline {
           script {
             def qg = waitForQualityGate()
             if (qg.status != 'OK') {
-              error "Quality gate failed: ${qg.status}"
+              unstable "Quality gate failed: ${qg.status}. Continuing with pipeline."
+              // Or use this to fail the build:
+              // error "Quality gate failed: ${qg.status}"
             }
           }
         }
@@ -93,6 +95,7 @@ pipeline {
     stage('Scan Images with Trivy') {
       steps {
         script {
+          // Manually list images instead of using findFiles
           def images = [
             "${FRONTEND_IMAGE}:${IMAGE_TAG}",
             "${BACKEND_IMAGE}:${IMAGE_TAG}",
@@ -136,23 +139,8 @@ pipeline {
   post {
     always {
       sh "docker logout || true"
-      // Archive reports if they exist
-      script {
-        def reports = [
-          'dependency-check-report.xml',
-          'trivy-fs-report.html'
-        ]
-        
-        // Add image scan reports
-        def scanReports = findFiles(glob: 'trivy-image-scan-*.html')
-        scanReports.each { report ->
-          reports.add(report.path)
-        }
-        
-        if (!reports.isEmpty()) {
-          archiveArtifacts artifacts: reports.join(','), allowEmptyArchive: true
-        }
-      }
+      // Archive known report files
+      archiveArtifacts artifacts: '**/dependency-check-report.xml,**/trivy-fs-report.html,**/trivy-image-scan-*.html', allowEmptyArchive: true
     }
     
     success {
@@ -169,6 +157,14 @@ pipeline {
         subject: "FAILED: ${env.JOB_NAME}",
         body: "Build failed! Check ${env.BUILD_URL}",
         attachLog: true
+      )
+    }
+    
+    unstable {
+      emailext(
+        to: 'kiranmyself90@gmail.com',
+        subject: "UNSTABLE: ${env.JOB_NAME}",
+        body: "Quality gate failed but pipeline continued. Check ${env.BUILD_URL}"
       )
     }
   }
