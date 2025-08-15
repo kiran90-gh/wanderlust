@@ -20,12 +20,11 @@ pipeline {
       }
     }
 
-     stage('Install Dependencies') {
-       steps {
-           sh 'docker run --rm -v $PWD:/app -w /app/backend node:18 npm install'
-           sh 'docker run --rm -v $PWD:/app -w /app/frontend node:18 npm install'
-              }
-         }
+    stage('Install Dependencies') {
+      steps {
+        sh 'docker run --rm -v $PWD:/app -w /app/backend node:18 npm install'
+        sh 'docker run --rm -v $PWD:/app -w /app/frontend node:18 npm install'
+      }
     }
 
     stage("SonarQube Quality Analysis") {
@@ -160,5 +159,5 @@ pipeline {
       )
     }
   }
- }
 }
+
