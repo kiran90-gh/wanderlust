@@ -13,6 +13,18 @@ pipeline {
     // Tag with git commit SHA
     IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
   }
+  
+  stages {
+    stage('Install Dependencies') {
+      steps {
+        dir('backend') {
+          sh 'npm install'  // Fixes missing node modules
+        }
+        dir('frontend') {
+          sh 'npm install'
+        }
+      }
+    }
 
   stages {
     stage("SonarQube Quality Analysis") {
