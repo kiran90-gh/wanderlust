@@ -3,14 +3,15 @@ pipeline {
 
   environment {
     SONAR_HOME = tool "sonar"
-     DOCKER_CREDS = credentials('docker_hub')
-        
-                                                                               // Image names (replace with your Docker Hub username)
-        FRONTEND_IMAGE = "kiran90/frontend-app"
-        BACKEND_IMAGE = "kiran90/backend-app"
-        DATABASE_IMAGE = "kiran90/database" 
-                                                                                 // Tag with git commit SHA
-        IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+    DOCKER_CREDS = credentials('docker_hub')
+    
+    // Image names
+    FRONTEND_IMAGE = "kiran90/frontend-app"
+    BACKEND_IMAGE = "kiran90/backend-app"
+    DATABASE_IMAGE = "kiran90/database" 
+    
+    // Tag with git commit SHA
+    IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
   }
 
   stages {
@@ -47,67 +48,63 @@ pipeline {
       }
     }
 
+    // Build stages moved before deploy
+    stage('Build Frontend') {
+      steps {
+        dir('frontend') {
+          script {
+            docker.build("${FRONTEND_IMAGE}:${IMAGE_TAG}", ".")
+          }
+        }
+      }
+    }
+
+    stage('Build Backend') {
+      steps {
+        dir('backend') {
+          script {
+            docker.build("${BACKEND_IMAGE}:${IMAGE_TAG}", ".")
+          }
+        }
+      }
+    }
+
+    stage('Build Database') {
+      steps {
+        dir('database') {
+          script {
+            docker.build("${DATABASE_IMAGE}:${IMAGE_TAG}", ".")
+          }
+        }
+      }
+    }
+
+    stage('Docker Login') {
+      steps {
+        sh """
+          echo ${DOCKER_CREDS_PSW} | docker login \
+          -u ${DOCKER_CREDS_USR} \
+          --password-stdin
+        """
+      }
+    }
+
+    stage('Push Images') {
+      steps {
+        parallel(
+          "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
+          "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
+          "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
+        )
+      }
+    }
+
     stage("Deploy using Docker Compose") {
       steps {
         sh "docker-compose up -d"
       }
     }
   }
-  
-  stages {                                                              // Stage 1: Build Frontend
-        stage('Build Frontend') {
-            steps {
-                dir('frontend') {
-                    script {
-                        docker.build("${FRONTEND_IMAGE}:${IMAGE_TAG}", ".")
-                    }
-                }
-            }
-        }
-
-                                                                          // Stage 2: Build Backend
-    stage('Build Backend') {
-            steps {
-                dir('backend') {
-                    script {
-                        docker.build("${BACKEND_IMAGE}:${IMAGE_TAG}", ".")
-                    }
-                }
-            }
-        }
-                                                                             // Stage 3: Build Database
-     stage('Build Database') {
-            steps {
-                dir('database') {  // New database directory
-                    script {
-                        docker.build("${DATABASE_IMAGE}:${IMAGE_TAG}", ".")
-                    }
-                }
-            }
-        }
-
-                                                                                // Stage 4: Login to Docker Hub
-     stage('Docker Login') {
-            steps {
-                sh """
-                    echo ${DOCKER_CREDS_PSW} | docker login \
-                    -u ${DOCKER_CREDS_USR} \
-                    --password-stdin
-                """
-            }
-        }
-
-                                                                                // Stage 5: Push All Images
-    stage('Push Images') {
-            steps {
-                parallel(
-                    "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
-                    "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
-                    "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
-                )
-            }
-        }
-    }
 
   post {
     success {
