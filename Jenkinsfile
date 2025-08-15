@@ -4,30 +4,33 @@ pipeline {
   environment {
     SONAR_HOME = tool "sonar"
     DOCKER_CREDS = credentials('docker_hub')
-    
+
     // Image names
     FRONTEND_IMAGE = "kiran90/frontend-app"
     BACKEND_IMAGE = "kiran90/backend-app"
-    DATABASE_IMAGE = "kiran90/database" 
-    
-    // Tag with git commit SHA
-    IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+    DATABASE_IMAGE = "kiran90/database"
   }
-  
+
   stages {
+    stage('Set Image Tag') {
+      steps {
+        script {
+          env.IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+        }
+      }
+    }
+
     stage('Install Dependencies') {
       steps {
         dir('backend') {
-          sh 'npm install'  // Fixes missing node modules
+          sh 'npm install'
         }
         dir('frontend') {
           sh 'npm install'
         }
       }
     }
-  }
-    
-  stages {
+
     stage("SonarQube Quality Analysis") {
       steps {
         withSonarQubeEnv("sonar") {
@@ -39,7 +42,6 @@ pipeline {
         }
       }
     }
-  }
 
     stage("Sonar Quality Gate") {
       steps {
@@ -62,7 +64,6 @@ pipeline {
       }
     }
 
-    // Build stages moved before deploy
     stage('Build Frontend') {
       steps {
         dir('frontend') {
@@ -155,6 +156,8 @@ pipeline {
         subject: "UNSTABLE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
         body: """<h2>⚠️ Build Unstable</h2>
                 <p>Tests failed but build completed</p>"""
-         )
-       }
-     }
+      )
+    }
+  }
+}
+
