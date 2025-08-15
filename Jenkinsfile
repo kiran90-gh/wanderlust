@@ -36,8 +36,9 @@ pipeline {
 
     stage('Install Dependencies') {
       steps {
-        sh 'docker run --rm -u $(id -u):$(id -g) -v $PWD:/app -w /app/backend node:18 npm install'
-        sh 'docker run --rm -u $(id -u):$(id -g) -v $PWD:/app -w /app/frontend node:18 npm install'
+        sh 'docker run --rm -v $PWD:/app -w /app/backend node:18 npm install'
+        sh 'docker run --rm -v $PWD:/app -w /app/frontend node:18 npm install'
+
       }
     }
 
