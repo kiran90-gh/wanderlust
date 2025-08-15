@@ -24,6 +24,8 @@ pipeline {
           sh 'npm install'
         }
       }
+    }
+  }
     
   stages {
     stage("SonarQube Quality Analysis") {
