@@ -155,7 +155,9 @@ pipeline {
         subject: "UNSTABLE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
         body: """<h2>⚠️ Build Unstable</h2>
                 <p>Tests failed but build completed</p>"""
-      )
-    }
+         )
+       }
+     }
+   }
   }
 }
