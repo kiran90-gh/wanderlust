@@ -113,6 +113,7 @@ pipeline {
         }
       }
     }
+  } // 🔹 Closing stages block
 
   post {
     success {
@@ -153,4 +154,3 @@ pipeline {
     }
   }
 }
-
