@@ -4,8 +4,6 @@ pipeline {
   environment {
     SONAR_HOME = tool "sonar"
     DOCKER_CREDS = credentials('docker_hub')
-
-    // Image names
     FRONTEND_IMAGE = "kiran90/frontend-app"
     BACKEND_IMAGE = "kiran90/backend-app"
     DATABASE_IMAGE = "kiran90/database"
@@ -27,7 +25,7 @@ pipeline {
       }
     }
 
-    stage("SonarQube Quality Analysis") {
+    stage("SonarQube Analysis") {
       steps {
         withSonarQubeEnv("sonar") {
           sh """
@@ -39,28 +37,23 @@ pipeline {
       }
     }
 
-    stage("Sonar Quality Gate") {
+    stage("Quality Gate") {
       steps {
         timeout(time: 2, unit: "MINUTES") {
-          waitForQualityGate abortPipeline: false
+          waitForQualityGate abortPipeline: true
         }
       }
     }
 
-    stage("OWASP Dependency Check") {
+    stage("Security Checks") {
       steps {
         dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'owasp'
         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-      }
-    }
-
-    stage("Trivy File System Scan") {
-      steps {
         sh "trivy fs --format table -o trivy-fs-report.html ."
       }
     }
 
-    stage('Build Docker Images') {
+    stage('Build Images') {
       parallel {
         stage('Build Frontend') {
           steps {
@@ -92,30 +85,23 @@ pipeline {
       }
     }
 
-    stage('Scan Docker Images with Trivy') {
+    stage('Scan Images with Trivy') {
       steps {
         script {
-          // Scan each image with different severity thresholds
-          def imagesToScan = [
-            [name: "${FRONTEND_IMAGE}:${IMAGE_TAG}", severity: "CRITICAL"],
-            [name: "${BACKEND_IMAGE}:${IMAGE_TAG}", severity: "HIGH,CRITICAL"],
-            [name: "${DATABASE_IMAGE}:${IMAGE_TAG}", severity: "MEDIUM,HIGH,CRITICAL"]
+          def images = [
+            "${FRONTEND_IMAGE}:${IMAGE_TAG}",
+            "${BACKEND_IMAGE}:${IMAGE_TAG}", 
+            "${DATABASE_IMAGE}:${IMAGE_TAG}"
           ]
-
-          imagesToScan.each { img ->
-            try {
-              sh """
-                trivy image \
-                --severity ${img.severity} \
-                --exit-code 0 \
+          
+          images.each { img ->
+            sh """
+              trivy image --severity HIGH,CRITICAL \
                 --format table \
-                --output "trivy-scan-${img.name.replace('/', '-')}.html" \
-                ${img.name}
-              """
-              archiveArtifacts artifacts: "trivy-scan-${img.name.replace('/', '-')}.html"
-            } catch (Exception e) {
-              echo "Trivy scan warning for ${img.name}: ${e.toString()}"
-            }
+                --exit-code 0 \
+                --output trivy-image-scan-${img.replace('/', '-')}.html \
+                ${img}
+            """
           }
         }
       }
@@ -125,66 +111,60 @@ pipeline {
       steps {
         sh """
           echo ${DOCKER_CREDS_PSW} | docker login \
-          -u ${DOCKER_CREDS_USR} \
-          --password-stdin
+            -u ${DOCKER_CREDS_USR} \
+            --password-stdin
         """
       }
     }
 
     stage('Push Images') {
       steps {
-        script {
-          parallel(
-            "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
-            "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
-            "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
-          )
-        }
+        parallel(
+          "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
+          "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
+          "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
+        )
       }
     }
   }
 
   post {
     always {
-      // Cleanup and artifact collection
       sh "docker logout || true"
-      junit '**/target/surefire-reports/*.xml' 
-      archiveArtifacts artifacts: '**/trivy-scan-*.html,**/trivy-fs-report.html,**/dependency-check-report.xml', allowEmptyArchive: true
+      // Only archive reports that exist
+      script {
+        def artifacts = []
+        if (fileExists('dependency-check-report.xml')) {
+          artifacts.add('**/dependency-check-report.xml')
+        }
+        if (fileExists('trivy-fs-report.html')) {
+          artifacts.add('**/trivy-fs-report.html')
+        }
+        // Add image scan reports
+        findFiles(glob: 'trivy-image-scan-*.html').each {
+          artifacts.add(it.path)
+        }
+        
+        if (!artifacts.isEmpty()) {
+          archiveArtifacts artifacts: artifacts.join(','), allowEmptyArchive: true
+        }
+      }
     }
+    
     success {
       emailext(
         to: 'kiranmyself90@gmail.com',
-        subject: "SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-        body: """<h2>✅ Build Successful!</h2>
-                <p><b>Project:</b> ${env.JOB_NAME}</p>
-                <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
-                <p><b>Duration:</b> ${currentBuild.durationString}</p>
-                <p><b>Console:</b> <a href="${env.BUILD_URL}">View Build</a></p>""",
-        mimeType: 'text/html'
+        subject: "SUCCESS: ${env.JOB_NAME}",
+        body: "Build succeeded! See ${env.BUILD_URL}"
       )
-      echo "Pipeline completed successfully!"
     }
+    
     failure {
       emailext(
         to: 'kiranmyself90@gmail.com',
-        subject: "FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-        body: """<h2>❌ Build Failed!</h2>
-                <p><b>Project:</b> ${env.JOB_NAME}</p>
-                <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
-                <p><b>Failed Stage:</b> ${env.STAGE_NAME}</p>
-                <p><b>Console:</b> <a href="${env.BUILD_URL}">View Logs</a></p>""",
-        mimeType: 'text/html',
-        attachLog: true,
-        compressLog: true
-      )
-      echo "Pipeline failed — checking logs."
-    }
-    unstable {
-      emailext(
-        to: 'kiranmyself90@gmail.com',
-        subject: "UNSTABLE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-        body: """<h2>⚠️ Build Unstable</h2>
-                <p>Tests failed but build completed</p>"""
+        subject: "FAILED: ${env.JOB_NAME}",
+        body: "Build failed! Check ${env.BUILD_URL}",
+        attachLog: true
       )
     }
   }
