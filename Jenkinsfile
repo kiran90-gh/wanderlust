@@ -92,6 +92,35 @@ pipeline {
       }
     }
 
+    stage('Scan Docker Images with Trivy') {
+      steps {
+        script {
+          // Scan each image with different severity thresholds
+          def imagesToScan = [
+            [name: "${FRONTEND_IMAGE}:${IMAGE_TAG}", severity: "CRITICAL"],
+            [name: "${BACKEND_IMAGE}:${IMAGE_TAG}", severity: "HIGH,CRITICAL"],
+            [name: "${DATABASE_IMAGE}:${IMAGE_TAG}", severity: "MEDIUM,HIGH,CRITICAL"]
+          ]
+
+          imagesToScan.each { img ->
+            try {
+              sh """
+                trivy image \
+                --severity ${img.severity} \
+                --exit-code 0 \
+                --format table \
+                --output "trivy-scan-${img.name.replace('/', '-')}.html" \
+                ${img.name}
+              """
+              archiveArtifacts artifacts: "trivy-scan-${img.name.replace('/', '-')}.html"
+            } catch (Exception e) {
+              echo "Trivy scan warning for ${img.name}: ${e.toString()}"
+            }
+          }
+        }
+      }
+    }
+
     stage('Docker Login') {
       steps {
         sh """
@@ -113,9 +142,15 @@ pipeline {
         }
       }
     }
-  } // 🔹 Closing stages block
+  }
 
   post {
+    always {
+      // Cleanup and artifact collection
+      sh "docker logout || true"
+      junit '**/target/surefire-reports/*.xml' 
+      archiveArtifacts artifacts: '**/trivy-scan-*.html,**/trivy-fs-report.html,**/dependency-check-report.xml', allowEmptyArchive: true
+    }
     success {
       emailext(
         to: 'kiranmyself90@gmail.com',
