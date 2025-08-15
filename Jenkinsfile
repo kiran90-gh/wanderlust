@@ -22,6 +22,7 @@ pipeline {
 
     stage('Install Dependencies') {
       steps {
+        nodejs(nodeJSInstallationName: 'node18')
         dir('backend') {
           sh 'npm install'
         }
