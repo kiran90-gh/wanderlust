@@ -45,6 +45,43 @@ pipeline {
       }
     }
   }
+   post {
+        success {
+            emailext(
+                to: 'kiranmyself90@gmail.com',
+                subject: "SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """<h2>✅ Build Successful!</h2>
+                        <p><b>Project:</b> ${env.JOB_NAME}</p>
+                        <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+                        <p><b>Duration:</b> ${currentBuild.durationString}</p>
+                        <p><b>Console:</b> <a href="${env.BUILD_URL}">View Build</a></p>""",
+                mimeType: 'text/html'
+            )
+        }
+        failure {
+            emailext(
+                to: 'kiranmyself90@gmail.com',
+                subject: "FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """<h2>❌ Build Failed!</h2>
+                        <p><b>Project:</b> ${env.JOB_NAME}</p>
+                        <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+                        <p><b>Failed Stage:</b> ${env.STAGE_NAME}</p>
+                        <p><b>Console:</b> <a href="${env.BUILD_URL}">View Logs</a></p>""",
+                mimeType: 'text/html',
+                attachLog: true,  // Attaches build log
+                compressLog: true
+            )
+        }
+        unstable {
+            emailext(
+                to: 'kiranmyself90@gmail.com',
+                subject: "UNSTABLE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """<h2>⚠️ Build Unstable</h2>
+                        <p>Tests failed but build completed</p>"""
+            )
+        }
+    }
+}
 
   post {
     success {
