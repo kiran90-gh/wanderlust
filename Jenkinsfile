@@ -9,25 +9,26 @@ pipeline {
     DATABASE_IMAGE = "kiran90/database"
   }
 
-  stage('Cleanup Workspace & Docker') {
-  steps {
-    sh '''
-      echo "🧹 Cleaning old workspace and Docker data..."
-      # Take ownership of all files before deletion
-      sudo chown -R $(whoami):$(whoami) .
-      
-      # Remove everything
-      rm -rf * .[^.] .??* || true
+  stages {
+    stage('Cleanup Workspace & Docker') {
+      steps {
+        sh '''
+          echo "🧹 Cleaning old workspace and Docker data..."
+          # Change ownership of files created by root (from Docker containers)
+          sudo chown -R $(whoami):$(whoami) .
+          
+          # Remove everything in workspace
+          rm -rf * .[^.] .??* || true
 
-      # Clean Docker stuff
-      docker system prune -af || true
-      docker volume prune -f || true
-      docker network prune -f || true
+          # Clean up Docker to free space
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker network prune -f || true
 
-      echo "✅ Cleanup done."
-    '''
-  }
-}
+          echo "✅ Cleanup done."
+        '''
+      }
+    }
 
     stage('Set Image Tag') {
       steps {
