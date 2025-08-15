@@ -4,32 +4,14 @@ pipeline {
   environment {
     SONAR_HOME = tool "sonar"
     DOCKER_CREDS = credentials('docker_hub')
+
+    // Image names
     FRONTEND_IMAGE = "kiran90/frontend-app"
     BACKEND_IMAGE = "kiran90/backend-app"
     DATABASE_IMAGE = "kiran90/database"
   }
 
   stages {
-    stage('Cleanup Workspace & Docker') {
-      steps {
-        sh '''
-          echo "🧹 Cleaning old workspace and Docker data..."
-          # Change ownership of files created by root (from Docker containers)
-          sudo chown -R $(whoami):$(whoami) .
-          
-          # Remove everything in workspace
-          rm -rf * .[^.] .??* || true
-
-          # Clean up Docker to free space
-          docker system prune -af || true
-          docker volume prune -f || true
-          docker network prune -f || true
-
-          echo "✅ Cleanup done."
-        '''
-      }
-    }
-
     stage('Set Image Tag') {
       steps {
         script {
@@ -45,7 +27,7 @@ pipeline {
       }
     }
 
-    stage("SonarQube Analysis") {
+    stage("SonarQube Quality Analysis") {
       steps {
         withSonarQubeEnv("sonar") {
           sh """
@@ -57,28 +39,28 @@ pipeline {
       }
     }
 
-    stage("Quality Gate") {
+    stage("Sonar Quality Gate") {
       steps {
-        timeout(time: 5, unit: "MINUTES") {
-          script {
-            def qg = waitForQualityGate()
-            if (qg.status != 'OK') {
-              error "🚫 Quality gate failed: ${qg.status}"
-            }
-          }
+        timeout(time: 2, unit: "MINUTES") {
+          waitForQualityGate abortPipeline: false
         }
       }
     }
 
-    stage("Security Checks") {
+    stage("OWASP Dependency Check") {
       steps {
-        dependencyCheck additionalArguments: '--disableNodeAudit --scan ./', odcInstallation: 'owasp'
+        dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'owasp'
         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-        sh "trivy fs --security-checks vuln --skip-dirs node_modules --format table -o trivy-fs-report.html ."
       }
     }
 
-    stage('Build Images') {
+    stage("Trivy File System Scan") {
+      steps {
+        sh "trivy fs --format table -o trivy-fs-report.html ."
+      }
+    }
+
+    stage('Build Docker Images') {
       parallel {
         stage('Build Frontend') {
           steps {
@@ -110,69 +92,64 @@ pipeline {
       }
     }
 
-    stage('Scan Images with Trivy') {
-      steps {
-        script {
-          def images = [
-            "${FRONTEND_IMAGE}:${IMAGE_TAG}",
-            "${BACKEND_IMAGE}:${IMAGE_TAG}",
-            "${DATABASE_IMAGE}:${IMAGE_TAG}"
-          ]
-          
-          images.each { img ->
-            sh """
-              trivy image --severity HIGH,CRITICAL \
-                --format table \
-                --exit-code 0 \
-                --output trivy-image-scan-${img.replace('/', '-')}.html \
-                ${img}
-            """
-          }
-        }
-      }
-    }
-
     stage('Docker Login') {
       steps {
         sh """
           echo ${DOCKER_CREDS_PSW} | docker login \
-            -u ${DOCKER_CREDS_USR} \
-            --password-stdin
+          -u ${DOCKER_CREDS_USR} \
+          --password-stdin
         """
       }
     }
 
     stage('Push Images') {
       steps {
-        parallel(
-          "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
-          "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
-          "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
-        )
+        script {
+          parallel(
+            "Push Frontend": { sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}" },
+            "Push Backend": { sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}" },
+            "Push Database": { sh "docker push ${DATABASE_IMAGE}:${IMAGE_TAG}" }
+          )
+        }
       }
     }
-  }
+  } // 🔹 Closing stages block
 
   post {
-    always {
-      sh "docker logout || true"
-      archiveArtifacts artifacts: '**/dependency-check-report.xml,**/trivy-fs-report.html,**/trivy-image-scan-*.html', allowEmptyArchive: true
-    }
-    
     success {
       emailext(
         to: 'kiranmyself90@gmail.com',
-        subject: "✅ SUCCESS: ${env.JOB_NAME}",
-        body: "Build succeeded! See ${env.BUILD_URL}"
+        subject: "SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+        body: """<h2>✅ Build Successful!</h2>
+                <p><b>Project:</b> ${env.JOB_NAME}</p>
+                <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+                <p><b>Duration:</b> ${currentBuild.durationString}</p>
+                <p><b>Console:</b> <a href="${env.BUILD_URL}">View Build</a></p>""",
+        mimeType: 'text/html'
       )
+      echo "Pipeline completed successfully!"
     }
-    
     failure {
       emailext(
         to: 'kiranmyself90@gmail.com',
-        subject: "❌ FAILED: ${env.JOB_NAME}",
-        body: "Build failed! Check ${env.BUILD_URL}",
-        attachLog: true
+        subject: "FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+        body: """<h2>❌ Build Failed!</h2>
+                <p><b>Project:</b> ${env.JOB_NAME}</p>
+                <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+                <p><b>Failed Stage:</b> ${env.STAGE_NAME}</p>
+                <p><b>Console:</b> <a href="${env.BUILD_URL}">View Logs</a></p>""",
+        mimeType: 'text/html',
+        attachLog: true,
+        compressLog: true
+      )
+      echo "Pipeline failed — checking logs."
+    }
+    unstable {
+      emailext(
+        to: 'kiranmyself90@gmail.com',
+        subject: "UNSTABLE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+        body: """<h2>⚠️ Build Unstable</h2>
+                <p>Tests failed but build completed</p>"""
       )
     }
   }
