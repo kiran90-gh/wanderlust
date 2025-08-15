@@ -1,17 +1,31 @@
 pipeline {
   agent any
+  options {
+    skipDefaultCheckout() // Skip default checkout to allow manual cleanup
+  }
 
   environment {
     SONAR_HOME = tool "sonar"
     DOCKER_CREDS = credentials('docker_hub')
-
-    // Image names
     FRONTEND_IMAGE = "kiran90/frontend-app"
     BACKEND_IMAGE = "kiran90/backend-app"
     DATABASE_IMAGE = "kiran90/database"
   }
 
   stages {
+    stage('Clean Workspace') {
+      steps {
+        echo "🧹 Cleaning workspace..."
+        cleanWs()
+      }
+    }
+
+    stage('Checkout Code') {
+      steps {
+        checkout scm
+      }
+    }
+
     stage('Set Image Tag') {
       steps {
         script {
@@ -102,7 +116,6 @@ pipeline {
           ]
           images.each { img ->
             sh """
-              echo "🔍 Scanning ${img} for HIGH and CRITICAL vulnerabilities..."
               trivy image --severity HIGH,CRITICAL \
                 --format table \
                 --output trivy-image-scan-${img.replace('/', '-')}.html \
@@ -151,7 +164,6 @@ pipeline {
                 <p><b>Console:</b> <a href="${env.BUILD_URL}">View Build</a></p>""",
         mimeType: 'text/html'
       )
-      echo "Pipeline completed successfully!"
     }
     failure {
       emailext(
@@ -166,7 +178,6 @@ pipeline {
         attachLog: true,
         compressLog: true
       )
-      echo "Pipeline failed — checking logs."
     }
     unstable {
       emailext(
