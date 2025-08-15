@@ -10,6 +10,19 @@ pipeline {
   }
 
   stages {
+    stage('Cleanup Workspace & Docker') {
+      steps {
+        sh '''
+          echo "🧹 Cleaning old workspace and Docker data..."
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker network prune -f || true
+          rm -rf * .[^.] .??* || true
+          echo "✅ Cleanup done."
+        '''
+      }
+    }
+
     stage('Set Image Tag') {
       steps {
         script {
@@ -43,9 +56,7 @@ pipeline {
           script {
             def qg = waitForQualityGate()
             if (qg.status != 'OK') {
-              unstable "Quality gate failed: ${qg.status}. Continuing with pipeline."
-              // Or use this to fail the build:
-              // error "Quality gate failed: ${qg.status}"
+              error "🚫 Quality gate failed: ${qg.status}"
             }
           }
         }
@@ -95,7 +106,6 @@ pipeline {
     stage('Scan Images with Trivy') {
       steps {
         script {
-          // Manually list images instead of using findFiles
           def images = [
             "${FRONTEND_IMAGE}:${IMAGE_TAG}",
             "${BACKEND_IMAGE}:${IMAGE_TAG}",
@@ -139,14 +149,13 @@ pipeline {
   post {
     always {
       sh "docker logout || true"
-      // Archive known report files
       archiveArtifacts artifacts: '**/dependency-check-report.xml,**/trivy-fs-report.html,**/trivy-image-scan-*.html', allowEmptyArchive: true
     }
     
     success {
       emailext(
         to: 'kiranmyself90@gmail.com',
-        subject: "SUCCESS: ${env.JOB_NAME}",
+        subject: "✅ SUCCESS: ${env.JOB_NAME}",
         body: "Build succeeded! See ${env.BUILD_URL}"
       )
     }
@@ -154,17 +163,9 @@ pipeline {
     failure {
       emailext(
         to: 'kiranmyself90@gmail.com',
-        subject: "FAILED: ${env.JOB_NAME}",
+        subject: "❌ FAILED: ${env.JOB_NAME}",
         body: "Build failed! Check ${env.BUILD_URL}",
         attachLog: true
-      )
-    }
-    
-    unstable {
-      emailext(
-        to: 'kiranmyself90@gmail.com',
-        subject: "UNSTABLE: ${env.JOB_NAME}",
-        body: "Quality gate failed but pipeline continued. Check ${env.BUILD_URL}"
       )
     }
   }
