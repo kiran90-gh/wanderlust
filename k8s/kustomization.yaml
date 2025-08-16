@@ -11,3 +11,4 @@ resources:
   - deploy-backend.yaml
   - svc-frontend.yaml
   - deploy-frontend.yaml
+  - ingress-frontend.yaml
