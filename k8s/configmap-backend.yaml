@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wanderlust-backend-config
+  namespace: wanderlust
+data:
+  MONGO_URL: "mongodb://wanderlust-database:27017/wanderlust"
+  BACKEND_PUBLIC_URL: "http://wanderlust-backend.wanderlust.svc.cluster.local:5000"
