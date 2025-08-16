@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wanderlust-backend
+  namespace: wanderlust
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wanderlust-backend
+  template:
+    metadata:
+      labels:
+        app: wanderlust-backend
+    spec:
+      containers:
+        - name: backend
+          image: kiran90/backend-app:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: MONGO_URL
+              value: "mongodb://wanderlust-database:27017/wanderlust"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wanderlust-backend
+  namespace: wanderlust
+spec:
+  selector:
+    app: wanderlust-backend
+  ports:
+    - port: 5000
+      targetPort: 5000
+  type: ClusterIP
