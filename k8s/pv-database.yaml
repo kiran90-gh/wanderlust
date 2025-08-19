@@ -1,0 +1,13 @@
+# wanderlust-db-pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: wanderlust-db-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: ""               # empty class => static PV
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /mnt/data/wanderlust-db
