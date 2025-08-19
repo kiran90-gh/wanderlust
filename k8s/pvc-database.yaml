@@ -1,3 +1,4 @@
+# wanderlust-db-pvc.yaml  (your existing file + storageClassName)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -5,6 +6,7 @@ metadata:
   namespace: wanderlust
 spec:
   accessModes: ["ReadWriteOnce"]
+  storageClassName: ""               # disables dynamic provisioning
   resources:
     requests:
       storage: 1Gi
