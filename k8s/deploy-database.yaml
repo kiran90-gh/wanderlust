@@ -14,32 +14,19 @@ spec:
         app: wanderlust-database
     spec:
       containers:
-        - name: database
-          image: kiran90/database:eb7e085
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 27017
-          volumeMounts:
-            - name: data
-              mountPath: /data/db
-          readinessProbe:
-            tcpSocket:
-              port: 27017
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          livenessProbe:
-            tcpSocket:
-              port: 27017
-            initialDelaySeconds: 60
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: wanderlust-db-pvc
+  - name: database
+    image: kiran90/database:eb7e085
+    command: ["mongod", "--bind_ip_all", "--dbpath", "/data/db"]
+    ports:
+      - containerPort: 27017
+    readinessProbe:
+      tcpSocket:
+        port: 27017
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    livenessProbe:
+      tcpSocket:
+        port: 27017
+      initialDelaySeconds: 30
+      periodSeconds: 20
+
