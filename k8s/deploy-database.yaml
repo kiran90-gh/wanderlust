@@ -13,20 +13,19 @@ spec:
       labels:
         app: wanderlust-database
     spec:
-      containers:
-  - name: database
-    image: kiran90/database:eb7e085
-    command: ["mongod", "--bind_ip_all", "--dbpath", "/data/db"]
-    ports:
-      - containerPort: 27017
-    readinessProbe:
-      tcpSocket:
-        port: 27017
-      initialDelaySeconds: 10
-      periodSeconds: 10
-    livenessProbe:
-      tcpSocket:
-        port: 27017
-      initialDelaySeconds: 30
-      periodSeconds: 20
-
+     containers:
+- name: database
+  image: kiran90/database:eb7e085
+  command: ["mongod", "--bind_ip_all", "--dbpath", "/data/db"]
+  ports:
+    - containerPort: 27017
+  readinessProbe:
+    tcpSocket:
+      port: 27017
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  livenessProbe:
+    tcpSocket:
+      port: 27017
+    initialDelaySeconds: 30
+    periodSeconds: 20
