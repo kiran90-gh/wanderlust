@@ -16,7 +16,7 @@ spec:
       containers:
         - name: frontend
           # image will be overridden via kustomize in overlays
-          image: kiran90/frontend-app:latest
+          image: kiran90/frontend-app:eb7e085
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
