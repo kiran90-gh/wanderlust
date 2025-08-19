@@ -25,12 +25,12 @@ spec:
           readinessProbe:
             tcpSocket:
               port: 27017
-            initialDelaySeconds: 5
+            initialDelaySeconds: 30
             periodSeconds: 10
           livenessProbe:
             tcpSocket:
               port: 27017
-            initialDelaySeconds: 15
+            initialDelaySeconds: 60
             periodSeconds: 20
           resources:
             requests:
