@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: database
-          image: kiran90/database:latest
+          image: kiran90/database:eb7e085
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 27017
